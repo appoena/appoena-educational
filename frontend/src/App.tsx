@@ -31,7 +31,14 @@ import {
 } from "react-router-dom";
 import { ApiError, checkout, getProduct, getProducts, submitSupport, validateCart } from "./api";
 import { useCart } from "./cart";
-import { addRumAction, setDemoRumUser, startRumView } from "./datadog";
+import {
+  addRumAction,
+  failRumFeatureOperation,
+  setDemoRumUser,
+  startRumFeatureOperation,
+  startRumView,
+  succeedRumFeatureOperation
+} from "./datadog";
 import type { Order, Product } from "./types";
 
 const routeNames: Array<[RegExp, string]> = [
@@ -631,6 +638,18 @@ function CheckoutPage() {
     setSubmitting(true);
     setError(null);
 
+    const checkoutOperationKey = createOperationKey("checkout");
+    startRumFeatureOperation("checkout", {
+      operationKey: checkoutOperationKey,
+      description: "submit_order",
+      context: {
+        itemCount: cart.itemCount,
+        subtotal: cart.subtotal,
+        paymentMethod: form.paymentMethod,
+        forcePaymentError: form.forcePaymentError
+      }
+    });
+
     try {
       const order = await checkout({
         customer: {
@@ -652,9 +671,28 @@ function CheckoutPage() {
         total: order.totals.total,
         itemCount: cart.itemCount
       });
+      succeedRumFeatureOperation("checkout", {
+        operationKey: checkoutOperationKey,
+        description: "submit_order",
+        context: {
+          orderId: order.id,
+          total: order.totals.total,
+          itemCount: cart.itemCount
+        }
+      });
       cart.clearCart();
       navigate("/order-confirmation", { state: { order } });
     } catch (requestError) {
+      failRumFeatureOperation("checkout", "error", {
+        operationKey: checkoutOperationKey,
+        description: "submit_order",
+        context: {
+          itemCount: cart.itemCount,
+          paymentMethod: form.paymentMethod,
+          errorStatus: requestError instanceof ApiError ? requestError.status : null,
+          errorCode: requestError instanceof ApiError ? requestError.code || null : null
+        }
+      });
       setError(getErrorMessage(requestError));
     } finally {
       setSubmitting(false);
@@ -1307,6 +1345,14 @@ function SyntheticUserBootstrap() {
   }, [location.pathname, location.search, navigate]);
 
   return null;
+}
+
+function createOperationKey(prefix: string) {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `${prefix}-${crypto.randomUUID()}`;
+  }
+
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 function getErrorMessage(error: unknown) {

@@ -134,9 +134,9 @@ function getApiBaseUrl() {
   }
 
   const host = window.location.hostname;
-  if (host === "localhost" || host === "127.0.0.1") {
-    return "http://localhost:3000";
+  if (host === "frontend" || host === "tea-shop-frontend") {
+    return "http://backend:3000";
   }
 
-  return "http://backend:3000";
+  return `http://${host === "0.0.0.0" ? "localhost" : host}:3000`;
 }

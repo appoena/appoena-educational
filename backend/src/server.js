@@ -22,7 +22,8 @@ app.use(
       "x-datadog-sampling-priority",
       "x-datadog-trace-id",
       "traceparent",
-      "tracestate"
+      "tracestate",
+      "baggage"
     ]
   })
 );

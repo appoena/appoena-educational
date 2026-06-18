@@ -4,6 +4,12 @@ import { reactPlugin } from '@datadog/browser-rum-react';
 
 let rumEnabled = false;
 type SimpleRumContext = Record<string, string | number | boolean | null>;
+type RumFeatureOperationFailureReason = "error" | "abandoned" | "other";
+type RumFeatureOperationOptions = {
+  operationKey?: string;
+  description?: string;
+  context?: Record<string, unknown>;
+};
 
 export function initDatadogRum() {
   const applicationId = import.meta.env.VITE_DD_APPLICATION_ID;
@@ -31,8 +37,13 @@ export function initDatadogRum() {
     trackResources: true,
     trackLongTasks: true,
     trackViewsManually: true,
+    enableExperimentalFeatures: ["feature_operation_vital"],
     defaultPrivacyLevel: "mask-user-input",
-    allowedTracingUrls: [/http:\/\/localhost*/, /http:\/\/frontend*/],
+    allowedTracingUrls: [
+      /^http:\/\/localhost:3000/,
+      /^http:\/\/127\.0\.0\.1:3000/,
+      /^http:\/\/backend:3000/
+    ],
     plugins: [reactPlugin({ router: false })]
   });
 
@@ -88,6 +99,40 @@ export function addRumAction(name: string, context: Record<string, unknown> = {}
   datadogRum.addAction(name, cleanContext(context));
 }
 
+export function startRumFeatureOperation(
+  name: string,
+  options: RumFeatureOperationOptions = {}
+) {
+  if (!rumEnabled) {
+    return;
+  }
+
+  datadogRum.startFeatureOperation(name, cleanFeatureOperationOptions(options));
+}
+
+export function succeedRumFeatureOperation(
+  name: string,
+  options: RumFeatureOperationOptions = {}
+) {
+  if (!rumEnabled) {
+    return;
+  }
+
+  datadogRum.succeedFeatureOperation(name, cleanFeatureOperationOptions(options));
+}
+
+export function failRumFeatureOperation(
+  name: string,
+  failureReason: RumFeatureOperationFailureReason,
+  options: RumFeatureOperationOptions = {}
+) {
+  if (!rumEnabled) {
+    return;
+  }
+
+  datadogRum.failFeatureOperation(name, failureReason, cleanFeatureOperationOptions(options));
+}
+
 export function captureRumError(error: unknown, context: Record<string, unknown> = {}) {
   if (!rumEnabled) {
     return;
@@ -104,4 +149,12 @@ function cleanContext(context: Record<string, unknown>): SimpleRumContext {
       return value === null || ["string", "number", "boolean"].includes(typeof value);
     })
   );
+}
+
+function cleanFeatureOperationOptions(options: RumFeatureOperationOptions) {
+  return {
+    operationKey: options.operationKey,
+    description: options.description,
+    context: cleanContext(options.context || {})
+  };
 }
