@@ -49,6 +49,7 @@ Referencias oficiais:
 
 - Browser RUM setup: https://docs.datadoghq.com/real_user_monitoring/application_monitoring/browser/setup/client/
 - Browser advanced configuration e React Router: https://docs.datadoghq.com/real_user_monitoring/application_monitoring/browser/advanced_configuration/
+- Frustration Signals: https://docs.datadoghq.com/real_user_monitoring/application_monitoring/browser/frustration_signals/
 - Session Replay: https://docs.datadoghq.com/session_replay/browser/
 
 ## O que a demo contem
@@ -56,6 +57,7 @@ Referencias oficiais:
 Rotas reais:
 
 - `/`
+- `/frustration-signals`
 - `/products`
 - `/products/:id`
 - `/cart`
@@ -75,6 +77,7 @@ Fluxos principais:
 - Suporte com formulario.
 - Loading states e erros controlados.
 - Scroll em lista longa de produtos.
+- Laboratorio isolado para Rage Click, Dead Click e Error Click.
 
 Erros controlados:
 
@@ -95,6 +98,8 @@ O frontend inicializa `@datadog/browser-rum` em `frontend/src/datadog.ts` com:
 - `trackViewsManually: true`
 - `defaultPrivacyLevel: 'mask-user-input'`
 
+O frontend e o plugin React usam a mesma major do Browser SDK. No SDK v7, o header W3C `baggage` e propagado por padrao nas URLs rastreadas; por isso o CORS do backend permite `baggage`, `traceparent` e `tracestate`.
+
 As views sao iniciadas manualmente a cada troca de rota do React Router. O projeto tambem envia actions customizadas:
 
 - `product_added_to_cart`
@@ -102,7 +107,39 @@ As views sao iniciadas manualmente a cada troca de rota do React Router. O proje
 - `checkout_completed`
 - `support_ticket_submitted`
 
-O SDK v6 inicia Session Replay automaticamente quando a sessao entra na amostra de replay. Por isso a demo usa `sessionReplaySampleRate: 100` e nao chama `startSessionReplayRecording()` manualmente.
+O SDK inicia Session Replay automaticamente quando a sessao entra na amostra de replay. Por isso a demo usa `sessionReplaySampleRate: 100` e nao chama `startSessionReplayRecording()` manualmente.
+
+## Demonstrar Frustration Signals
+
+Abra http://localhost:5173/frustration-signals ou use o link `Frustration Lab` no menu.
+
+Para deixar o RUM Explorer limpo durante a aula, voce pode pausar apenas o gerador de usuarios antes da demonstracao:
+
+```bash
+docker compose stop bot
+```
+
+Cada alvo possui `data-dd-action-name`, para que a action tenha um nome legivel no RUM Explorer:
+
+- Rage Click: clique em `Clique rapidamente aqui` pelo menos 4 vezes em menos de 1 segundo, sem mover o mouse. O contador ao lado muda a cada clique para produzir atividade de pagina e evitar que o mesmo alvo seja classificado como Dead Click.
+- Dead Click: clique uma unica vez em `Aplicar cupom de 30%` e aguarde pelo menos 2 segundos. O botao nao altera o DOM, nao inicia rede e nao navega. Nao clique repetidamente, pois isso tambem poderia gerar Rage Click.
+- Error Click: clique uma vez em `Calcular frete expresso`. O handler altera o estado visual e chama `datadogRum.addError()` por meio de `captureRumError`, fazendo o erro ficar associado a action automatica sem derrubar a pagina.
+
+No RUM Explorer, selecione `Actions`, filtre por `service:tea-shop-demo`, `env:local` e pela view `Frustration Signals Lab`, e use uma consulta por vez:
+
+```text
+@action.frustration.type:rage_click
+@action.frustration.type:dead_click
+@action.frustration.type:error_click
+```
+
+Os nomes esperados das actions sao:
+
+- `Frustration Lab - Rage Click`
+- `Frustration Lab - Dead Click`
+- `Frustration Lab - Error Click`
+
+O SDK somente conclui a cadeia de cliques depois de aguardar novos cliques. Por isso, espere alguns segundos antes de atualizar o RUM Explorer. A mesma sessao tambem pode ser aberta no Session Replay para mostrar o sinal na linha do tempo.
 
 ## Controlar o bot
 

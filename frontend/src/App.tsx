@@ -1,14 +1,17 @@
 import {
   AlertTriangle,
   ArrowRight,
+  Bug,
   CheckCircle2,
   ChevronDown,
+  CircleOff,
   Coffee,
   CreditCard,
   Filter,
   LifeBuoy,
   Loader2,
   Minus,
+  MousePointerClick,
   PackageCheck,
   Plus,
   Search,
@@ -37,12 +40,15 @@ import {
   setDemoRumUser,
   startRumFeatureOperation,
   startRumView,
-  succeedRumFeatureOperation
+  succeedRumFeatureOperation,
+  captureRumError
 } from "./datadog";
+
 import type { Order, Product } from "./types";
 
 const routeNames: Array<[RegExp, string]> = [
   [/^\/$/, "Home"],
+  [/^\/frustration-signals$/, "Frustration Signals Lab"],
   [/^\/products$/, "Products"],
   [/^\/products\/[^/]+$/, "Product Detail"],
   [/^\/cart$/, "Cart"],
@@ -60,6 +66,7 @@ export default function App() {
       <Layout>
         <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route path="/frustration-signals" element={<FrustrationSignalsPage />} />
           <Route path="/products" element={<ProductsPage />} />
           <Route path="/products/:id" element={<ProductDetailPage />} />
           <Route path="/cart" element={<CartPage />} />
@@ -94,6 +101,7 @@ function Layout({ children }: { children: ReactNode }) {
           <NavLink to="/cart">Cart</NavLink>
           <NavLink to="/checkout">Checkout</NavLink>
           <NavLink to="/support">Support</NavLink>
+          <NavLink to="/frustration-signals">Frustration Lab</NavLink>
         </nav>
 
         <div className="header-actions">
@@ -236,6 +244,129 @@ function HomePage() {
         <div>
           <strong>Error signals</strong>
           <span>Controlled failures for product lookup, payment and support.</span>
+        </div>
+      </section>
+    </section>
+  );
+}
+
+function FrustrationSignalsPage() {
+  const [rageActivity, setRageActivity] = useState(0);
+  const [errorAttempts, setErrorAttempts] = useState(0);
+
+  function handleErrorClick() {
+    const attempt = errorAttempts + 1;
+
+    // The visible state change counts as page activity, preventing this click from also
+    // being classified as a dead click. The RUM error remains associated with the click.
+    setErrorAttempts(attempt);
+    captureRumError(new Error("Controlled error from the Frustration Signals Lab"), {
+      feature: "frustration-signals-lab",
+      frustrationSignal: "error_click",
+      controlled: true,
+      attempt
+    });
+  }
+
+  return (
+    <section className="page frustration-page">
+      <div className="page-title">
+        <span className="eyebrow">Datadog RUM classroom lab</span>
+        <h1>Frustration Signals Lab</h1>
+        <p>
+          Cada alvo foi desenhado para gerar um sinal isolado. Siga exatamente a instrução de
+          cada cartão e aguarde alguns segundos antes de procurar a action no RUM Explorer.
+        </p>
+      </div>
+
+      <div className="lab-notice">
+        <AlertTriangle size={21} />
+        <div>
+          <strong>Antes da demonstração</strong>
+          <span>
+            Configure o Application ID e o Client Token no arquivo .env e abra esta página com o
+            RUM habilitado. Não selecione texto nem role a página enquanto fizer o Rage Click.
+          </span>
+        </div>
+      </div>
+
+      <div className="frustration-grid">
+        <article className="frustration-card rage-card">
+          <div className="signal-icon">
+            <MousePointerClick size={25} />
+          </div>
+          <span className="signal-code">rage_click</span>
+          <h2>Rage Click</h2>
+          <p>
+            Sem mover o mouse, clique no mesmo botão pelo menos 4 vezes em menos de 1 segundo.
+          </p>
+          <button
+            className="signal-target rage-target"
+            type="button"
+            data-dd-action-name="Frustration Lab - Rage Click"
+            onClick={() => setRageActivity((count) => count + 1)}
+          >
+            Clique rapidamente aqui
+          </button>
+          <output className="signal-feedback" aria-live="polite">
+            {rageActivity === 0
+              ? "A atividade visual evita que o alvo seja também um Dead Click."
+              : `Atividade visual registrada ${rageActivity} ${rageActivity === 1 ? "vez" : "vezes"}.`}
+          </output>
+        </article>
+
+        <article className="frustration-card dead-card">
+          <div className="signal-icon">
+            <CircleOff size={25} />
+          </div>
+          <span className="signal-code">dead_click</span>
+          <h2>Dead Click</h2>
+          <p>Clique uma única vez e aguarde pelo menos 2 segundos. O alvo não fará nada.</p>
+          <button
+            className="signal-target dead-target"
+            type="button"
+            data-dd-action-name="Frustration Lab - Dead Click"
+          >
+            Aplicar cupom de 30%
+          </button>
+          <div className="signal-feedback">
+            Não haverá mensagem, mudança no DOM, requisição ou navegação após o clique.
+          </div>
+        </article>
+
+        <article className="frustration-card error-card">
+          <div className="signal-icon">
+            <Bug size={25} />
+          </div>
+          <span className="signal-code">error_click</span>
+          <h2>Error Click</h2>
+          <p>Clique uma vez. A action receberá um erro JavaScript controlado e tratado.</p>
+          <button
+            className="signal-target error-target"
+            type="button"
+            data-dd-action-name="Frustration Lab - Error Click"
+            onClick={handleErrorClick}
+          >
+            Calcular frete expresso
+          </button>
+          <output className="signal-feedback" aria-live="polite">
+            {errorAttempts === 0
+              ? "O erro será enviado pelo SDK sem interromper a aplicação."
+              : `Erro controlado registrado. Tentativa ${errorAttempts}.`}
+          </output>
+        </article>
+      </div>
+
+      <section className="lab-query-panel">
+        <div>
+          <span className="eyebrow">RUM Explorer</span>
+          <h2>Filtros para a aula</h2>
+          <p>Abra a lista de Actions e filtre um sinal por vez.</p>
+        </div>
+        <div className="query-list">
+          <code>@action.frustration.type:rage_click</code>
+          <code>@action.frustration.type:dead_click</code>
+          <code>@action.frustration.type:error_click</code>
         </div>
       </section>
     </section>
